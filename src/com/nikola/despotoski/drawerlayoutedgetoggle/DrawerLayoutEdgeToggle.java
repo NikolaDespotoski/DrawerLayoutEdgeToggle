@@ -1,9 +1,11 @@
 
-package com.nikola.despotoski.drawerlayoutedgetoggle;
+package com.example.android.navigationdrawerexample;
 
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
+import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.ViewDragHelper;
 import android.util.Log;
@@ -14,6 +16,11 @@ import android.view.View;
 import android.view.View.MeasureSpec;
 import android.view.View.OnClickListener;
 import android.view.View.OnTouchListener;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.Animation;
+import android.view.animation.Animation.AnimationListener;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.TranslateAnimation;
 import android.widget.FrameLayout;
 import android.widget.FrameLayout.LayoutParams;
 import android.widget.ImageView;
@@ -34,7 +41,7 @@ import android.widget.ImageView;
    See the License for the specific language governing permissions and
    limitations under the License.
  */
-public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
+public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener, AnimationListener{
 
 	private Activity mActivity;
 	private DrawerLayout mDrawerLayout;
@@ -51,10 +58,10 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		@Override
 		public void onClick(View v) {
 			if(mDefaultOk){
-				if(!mDrawerLayout.isDrawerOpen(Gravity.START))
-					mDrawerLayout.openDrawer(Gravity.START);
+				if(!mDrawerLayout.isDrawerOpen(GravityCompat.START))
+					mDrawerLayout.openDrawer(GravityCompat.START);
 				else
-					mDrawerLayout.closeDrawer(Gravity.START);
+					mDrawerLayout.closeDrawer(GravityCompat.START);
 			}
 			if(mHandleClickListener != null)
 				mHandleClickListener.onClick(v);
@@ -95,7 +102,6 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		@Override
 		public void onViewAttachedToWindow(View v) {
 			if(v == mDrawerLayout){
-				  
 				   mDrawerLayout.measure(MeasureSpec.EXACTLY, MeasureSpec.EXACTLY);
 				   syncState();
 			 }
@@ -111,13 +117,27 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		mOpenDrawable = a.getResources().getDrawable(drawerOpen);
 	    mCloseDrawable = a.getResources().getDrawable(drawerClose);
 	    FrameLayout rootLayout = (FrameLayout)mActivity.findViewById(android.R.id.content);
-		mHandle = new ImageView(a);
+	    if(Build.VERSION.SDK_INT <= 12){
+			mHandle = new ImageView(a){
+	
+				@Override
+				protected void onAttachedToWindow() {
+					mDrawerLayout.measure(MeasureSpec.EXACTLY, MeasureSpec.EXACTLY);
+					syncState();
+				}
+				
+			};
+	    }else{
+	    	mHandle = new ImageView(a);
+	    }
 		mHandle.setOnClickListener(mHandleClickListenerInt);	
 		mHandle.setOnTouchListener(mHandleTouchListenerInt);
 		mHandle.setSaveEnabled(true);
 		rootLayout.addView(mHandle, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, gravity));
 		mKeepShadowOnHandle = keepShadowOnHandle;
-		mDrawerLayout.addOnAttachStateChangeListener(mOnAttachListener);
+		if(Build.VERSION.SDK_INT >= 12)
+			mDrawerLayout.addOnAttachStateChangeListener(mOnAttachListener);
+		
 	
 	}
 	public void setOverrideDefaultHandleAction(boolean ok){
@@ -155,8 +175,16 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 	@Override
 	public void onDrawerSlide(View arg0, float slideOffset) {	
 		getDrawerMinusShadow();
-		mHandle.setTranslationX(slideOffset*mMinusShadow);
-		mHandle.setX(mHandle.getTranslationX());
+		  float translationX = slideOffset*mMinusShadow;
+		if(Build.VERSION.SDK_INT >= 11){
+			mHandle.setTranslationX(translationX);
+			mHandle.setX(mHandle.getTranslationX());
+		}else{
+			HandleTranslateAnimation translateAnimation = new HandleTranslateAnimation(0, translationX, 0,0);
+			translateAnimation.setDuration(0);
+			translateAnimation.setAnimationListener(this);
+			mHandle.startAnimation(translateAnimation);
+		}
 		if(!mKeepShadowOnHandle)
 			 noShadow();
 		else
@@ -190,7 +218,8 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 			
 	}
 	private void noShadow(){
-		mCloseDrawable.setAlpha(MAX_ALPHA);		
+		mCloseDrawable.setAlpha(MAX_ALPHA);	
+		mOpenDrawable.setAlpha(MAX_ALPHA);
 	}
 	private void updateHandle(){
 		getDrawerMinusShadow();
@@ -206,18 +235,53 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 			    mActivity.getActionBar().setTitle(isOpen()? mActivity.getResources().getString(mOpenTitleRes) : mActivity.getResources().getString(mCloseTitleRes));
 	}
 	private boolean isOpen(){
-		return mDrawerLayout.isDrawerOpen(Gravity.START);
+		return mDrawerLayout.isDrawerOpen(GravityCompat.START);
 	}
 	public boolean onOptionsItemSelected(MenuItem item) {
 		if(isOpen()){
-			mDrawerLayout.closeDrawer(Gravity.START);
+			mDrawerLayout.closeDrawer(GravityCompat.START);
 		}
 		return false;
 	}
 	public void onConfigurationChanged(Configuration newConfig) {
 		
 	}
+	@Override
+	public void onAnimationEnd(Animation animation) {
+		 HandleTranslateAnimation hand = (HandleTranslateAnimation)animation;
+		 mHandle.setX(hand.getmToXDelta());
+	}
+	@Override
+	public void onAnimationRepeat(Animation animation) {
+		// TODO Auto-generated method stub
+		
+	}
+	@Override
+	public void onAnimationStart(Animation animation) {
+		// TODO Auto-generated method stub
+		
+	}
 	
-	
+	private class HandleTranslateAnimation extends TranslateAnimation{
+
+		private float mFromXDelta=0.0f;
+		private float mToXDelta= 0.0f;
+
+		public float getmFromXDelta() {
+			return mFromXDelta;
+		}
+
+		public float getmToXDelta() {
+			return mToXDelta;
+		}
+
+		public HandleTranslateAnimation(float fromXDelta, float toXDelta,
+				float fromYDelta, float toYDelta) {
+			super(fromXDelta, toXDelta, fromYDelta, toYDelta);
+			this.mFromXDelta = fromXDelta; 
+			this.mToXDelta  = toXDelta; 
+		}
+		
+	}
 	
 }
