@@ -9,7 +9,8 @@ DrawerLayoutEdgeToggle is library that adds visible handle to the DrawerLayout. 
 1. Import the library project and set it to your project.
 
 <pre><code>boolean keepShadowOnHandle = true;
-mDrawerToggle = new DrawerLayoutEdgeToggle(this, mDrawerLayout, R.drawable.drawer_open, R.drawable.drawer_close,Gravity.LEFT, keepShadowOnHandle){
+int drawerGravity = GravityCompat.START; // or GravityCompat.END
+mDrawerToggle = new DrawerLayoutEdgeToggle(this, mDrawerLayout, R.drawable.drawer_open, R.drawable.drawer_close, keepShadowOnHandle, drawerGravity){
 
                 @Override
                 public void onDrawerClosed(View arg0) {
