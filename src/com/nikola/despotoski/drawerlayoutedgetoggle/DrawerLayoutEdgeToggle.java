@@ -118,14 +118,14 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 	    mCloseDrawable = a.getResources().getDrawable(drawerClose);
 	    rootLayout = (FrameLayout)mActivity.findViewById(android.R.id.content);
 	    mHandle = new ImageView(a);
-	   final ViewTreeObserver viewTreeObserver = mHandle.getViewTreeObserver();
-	   viewTreeObserver.addOnGlobalLayoutListener(new OnGlobalLayoutListener(){
-		
-				@Override
-				public void onGlobalLayout() {
-					mDrawerLayout.measure(MeasureSpec.EXACTLY, MeasureSpec.EXACTLY);
-					syncState();
-				}});
+		   final ViewTreeObserver viewTreeObserver = mHandle.getViewTreeObserver();
+		   viewTreeObserver.addOnGlobalLayoutListener(new OnGlobalLayoutListener(){
+			
+					@Override
+					public void onGlobalLayout() {
+						mDrawerLayout.measure(MeasureSpec.EXACTLY, MeasureSpec.EXACTLY);
+						syncState();
+					}});
 	   
 		mHandle.setOnClickListener(mHandleClickListenerInt);	
 		mHandle.setOnTouchListener(mHandleTouchListenerInt);
@@ -227,7 +227,8 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		if(mTopPercentage > 100 || mTopPercentage < 0){
 			throw new IllegalArgumentException("Invalid percentage.");
 		}
-		if(mTopPercentage == 0 || mHandle.getY() > 0) return; //set y once in the life cycle and avoid any future calls
+		int initY = (int) (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB ? mHandle.getY() : ViewHelper.getX(mHandle));
+		if(mTopPercentage == 0 || initY > 0) return; //set y once in the life cycle and avoid any future calls
 		mTopPercentage/=100;
 		int screenHeight = getScreenHeight();
 		screenHeight -= getActionBarHeight();
