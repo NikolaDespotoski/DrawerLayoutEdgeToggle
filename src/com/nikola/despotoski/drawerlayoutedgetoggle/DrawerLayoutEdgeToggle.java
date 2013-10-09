@@ -1,11 +1,15 @@
 
-package com.nikola.despotoski.drawerlayoutedgetoggle;
+package com.example.android.navigationdrawerexample;
 
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Configuration;
+import android.content.res.TypedArray;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -13,6 +17,7 @@ import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.ViewDragHelper;
 import android.support.v7.app.ActionBarActivity;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
@@ -29,8 +34,10 @@ import android.widget.FrameLayout;
 import android.widget.FrameLayout.LayoutParams;
 import android.widget.ImageView;
 
+import com.nineoldandroids.animation.ObjectAnimator;
+import com.nineoldandroids.animation.ValueAnimator;
+import com.nineoldandroids.animation.ValueAnimator.AnimatorUpdateListener;
 import com.nineoldandroids.view.ViewHelper;
-import com.nineoldandroids.view.ViewPropertyAnimator;
 /* Author: Nikola Despotoski
  * Email: nikola[dot]despotoski(at)gmail[dot]com
  * 
@@ -82,9 +89,9 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 	private OnTouchListener mHandleTouchListenerInt = new OnTouchListener(){
 
 		private float mInitialX = 0.0f;
-
 		@Override
 		public boolean onTouch(View v, MotionEvent event) {
+			
 			  if(event.getAction() == MotionEvent.ACTION_DOWN){
 				  mInitialX = event.getX();
 			  }else if(event.getAction() == MotionEvent.ACTION_UP){
@@ -92,10 +99,12 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 			  }
 				MotionEvent copy = MotionEvent.obtain(event);
 				copy.setEdgeFlags(ViewDragHelper.EDGE_ALL);
-				copy.setLocation(event.getRawX() - mInitialX, event.getY());
-				//Log.i("copy.getRawX()", ""+copy.getRawX());
+				copy.setLocation(mDrawerLayout.isDrawerOpen(GravityCompat.START)? event.getX() : event.getX() - mInitialX, event.getY());
+			//	Log.i("copy.getRawX()", ""+copy.getRawX());
+			//	Log.i("View x ", " "+ViewHelper.getX(mHandle));
 				mDrawerLayout.onTouchEvent(copy);
 				return mHandleTouchListener != null?  mHandleTouchListener.onTouch(v, event) :false;
+			
 		}};
 	
 	private boolean mDefaultOk = true;
@@ -107,6 +116,8 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 	private Drawable mCurrentDrawable;
 	private int mScreenWidth;
 	private float mTopPercentage;
+	private int mPreviousX=0;
+	private int mY = 0;
 	public DrawerLayoutEdgeToggle(Activity a, DrawerLayout l, int drawerOpen, int drawerClose, boolean keepShadowOnHandle, int drawerGravity){
 
 		if(drawerGravity != GravityCompat.END && drawerGravity != GravityCompat.START && drawerGravity != Gravity.LEFT && drawerGravity != Gravity.RIGHT )
@@ -119,23 +130,27 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 	    rootLayout = (FrameLayout)mActivity.findViewById(android.R.id.content);
 	    mHandle = new ImageView(a);
 		   final ViewTreeObserver viewTreeObserver = mHandle.getViewTreeObserver();
+		   if(viewTreeObserver.isAlive()){
 		   viewTreeObserver.addOnGlobalLayoutListener(new OnGlobalLayoutListener(){
 			
+					@SuppressLint("NewApi")
 					@Override
 					public void onGlobalLayout() {
 						mDrawerLayout.measure(MeasureSpec.EXACTLY, MeasureSpec.EXACTLY);
 						syncState();
+						removeOnGlobalLayoutListener(mHandle, this);
 					}});
+		   }
 	   
 		mHandle.setOnClickListener(mHandleClickListenerInt);	
 		mHandle.setOnTouchListener(mHandleTouchListenerInt);
 		mHandle.setSaveEnabled(true);
-		rootLayout.addView(mHandle, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,drawerGravity == Gravity.START || drawerGravity == Gravity.LEFT ? Gravity.LEFT : Gravity.RIGHT));
+		mDrawerLayout.setOnTouchListener(mHandleTouchListenerInt);
+		rootLayout.addView(mHandle, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,drawerGravity));
 		mKeepShadowOnHandle = keepShadowOnHandle;
 		mCurrentDrawable = mCloseDrawable;
-		mScreenWidth = getScreenWidth();
 	}
- 
+	
 	public void setOverrideDefaultHandleAction(boolean ok){
 		mDefaultOk  = ok;
 	}
@@ -154,8 +169,21 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		mHandle.setImageDrawable(mCloseDrawable);
 		updateActionBar();
 		mCurrentDrawable = mCloseDrawable;
+		if(Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB){
+			ViewHelper.setX(mHandle, 0);
+			ViewHelper.setY(mHandle, mY);
+		}
+		
 	}
-
+	@SuppressWarnings("deprecation")
+	@SuppressLint("NewApi")
+	private void removeOnGlobalLayoutListener(View v, ViewTreeObserver.OnGlobalLayoutListener listener){
+	    if (Build.VERSION.SDK_INT < 16) {
+	        v.getViewTreeObserver().removeGlobalOnLayoutListener(listener);
+	    } else {
+	        v.getViewTreeObserver().removeOnGlobalLayoutListener(listener);
+	    }
+	}
 	@Override
 	public void onDrawerOpened(View arg0) {
 		mHandle.setImageDrawable(mOpenDrawable);	
@@ -172,19 +200,31 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 	@Override
 	public void onDrawerSlide(View arg0, float slideOffset) {	
 		getDrawerMinusShadow();
-		  float translationX = checkForLeftDrawer(mGravity,slideOffset*mMinusShadow);
+		  final float translationX = checkForLeftDrawer(mGravity,slideOffset*mMinusShadow);
 		//  Log.i("translationX ", " "+translationX);
 		if(Build.VERSION.SDK_INT >= 11){
 			mHandle.setTranslationX(translationX);
 			mHandle.setX(translationX);
 		}else{
-			ViewPropertyAnimator.animate(mHandle).translationX(translationX).setDuration(0).start();
-			ViewHelper.setX(mHandle, translationX);
+			ObjectAnimator translator = ObjectAnimator.ofFloat(mHandle, "x", mPreviousX, translationX).setDuration(0);
+			translator.addUpdateListener(mUpdateListener);
+			translator.start();
+			mPreviousX = (int) translationX;
 		}
 		updatShadowOnHandle(slideOffset);
 				
 	}
+	private AnimatorUpdateListener mUpdateListener = new AnimatorUpdateListener(){
 
+		@Override
+		public void onAnimationUpdate(ValueAnimator arg0) {
+			Float animatedValue = (Float)arg0.getAnimatedValue();
+			ViewHelper.setX(mHandle,animatedValue.floatValue());
+		}
+		
+	};
+
+	
 	@Override
 	public void onDrawerStateChanged(int arg0) {
 	
@@ -227,16 +267,38 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		if(mTopPercentage > 100 || mTopPercentage < 0){
 			throw new IllegalArgumentException("Invalid percentage.");
 		}
-		int initY = (int) (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB ? mHandle.getY() : ViewHelper.getX(mHandle));
-		if(mTopPercentage == 0 || initY > 0) return; //set y once in the life cycle and avoid any future calls
-		mTopPercentage/=100;
-		int screenHeight = getScreenHeight();
-		screenHeight -= getActionBarHeight();
-	    int y = (int) (screenHeight - (screenHeight * mTopPercentage));
-		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
-			mHandle.setY(y-mHandle.getDrawable().getIntrinsicHeight());
-		else
-			ViewHelper.setY(mHandle, y);
+		//int initY = (int) (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB ? mHandle.getY() : ViewHelper.getY(mHandle));
+		//if(initY > 0 || ) return; //set y once in the life cycle and avoid any future calls
+		float decimal = mTopPercentage/100;
+		int screenHeight = mActivity.findViewById(android.R.id.content).getHeight();
+	
+	
+	   
+		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB){
+			 int y = (int) (screenHeight - (screenHeight * decimal));
+			 y = screenHeight-y;
+			 mHandle.setY(screenHeight-y);
+		}else{
+			 /*
+			  * Height of the actionbar is actually 0 0 coordinate of the content view on devices < HC
+			  * Coordinate system;
+			  * __________> x
+			  * |
+			  * |
+			  * |
+			  * \/
+			  * y
+			  */
+			 screenHeight -= getActionBarHeight();
+			 int y = (int) (screenHeight - (screenHeight * decimal));
+			 int toAdd =  getActionBarHeight() + (mHandle.getDrawable().getIntrinsicHeight()/2);
+			 y = screenHeight - y + toAdd;
+			 FrameLayout.LayoutParams params = (LayoutParams) mHandle.getLayoutParams();
+			 params.topMargin = y-(mHandle.getDrawable().getIntrinsicHeight()/2);
+			 mHandle.setLayoutParams(params);
+			 ViewHelper.setY(mHandle, y);
+			 mY = y; 
+		}
 	}
 	private void noShadow(){
 		mCloseDrawable.setAlpha(MAX_ALPHA);	
@@ -257,6 +319,7 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		}
 		
 	}
+	@SuppressLint("NewApi")
 	@SuppressWarnings("deprecation")
 	private int getScreenWidth(){
 		
@@ -282,6 +345,7 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 				else if(mActivity instanceof ActionBarActivity){
 					((ActionBarActivity)mActivity).getSupportActionBar().setTitle(title);
 				}
+				//TODO ActionBarSherlock via Java Reflection, since appcompat and sherlock are mutually exclusive
 			}
 	}
 	private boolean isOpen(){
@@ -300,6 +364,7 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		
 	}
 
+	@SuppressLint("NewApi")
 	@SuppressWarnings("deprecation")
 	private int getScreenHeight(){		
 		Point size = new Point();
@@ -312,11 +377,44 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		    return d.getHeight(); 
 		}
 	}
+	private int iterateAttributesForActionBarSherlock(){
+		PackageInfo packageInfo;
+		try {
+			packageInfo = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), PackageManager.GET_META_DATA);
+			int themeId =  packageInfo.applicationInfo.theme;
+			TypedArray themeAttributes = mActivity.getResources().obtainTypedArray(themeId);
+			for(int i = 0; i < themeAttributes.length(); i++){
+				try{
+				TypedValue v = new TypedValue();
+				themeAttributes.getValue(i, v);
+				String attName = mActivity.getResources().getResourceEntryName(v.resourceId);
+				if(attName!=null && attName.contains("actionbarsherlock") && attName.contains("actionBarSize")){
+					return v.data;
+				}}catch(Exception e){
+					Log.e("ResourceNotFound", ""+e.getMessage());
+				}
+			}
+			themeAttributes.recycle();
+		} catch (NameNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return 0;
+      
+		
+	}
+	//
+	// Credits to Andreas Bangerl (andreas[dot]bangerl[at]mkw[dot]at) for few suggested fixes.
 	private int getActionBarHeight(){
 		TypedValue tv = new TypedValue();
 	    int actionBarHeight = 0;
 		if (mActivity.getTheme().resolveAttribute(android.R.attr.actionBarSize, tv, true))
 	        actionBarHeight = TypedValue.complexToDimensionPixelSize(tv.data,mActivity.getResources().getDisplayMetrics());
+		else if(actionBarHeight == 0 && mActivity instanceof ActionBarActivity){
+			actionBarHeight = (int) mActivity.getResources().getDimension(R.dimen.abc_action_bar_default_height);
+		}else{
+			actionBarHeight = iterateAttributesForActionBarSherlock();
+		}
 		return actionBarHeight;
 	}
 	
