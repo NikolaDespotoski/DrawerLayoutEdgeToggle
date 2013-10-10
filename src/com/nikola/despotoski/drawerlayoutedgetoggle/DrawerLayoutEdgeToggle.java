@@ -1,5 +1,5 @@
 
-package com.example.android.navigationdrawerexample;
+package com.nikola.despotoski.drawerlayoutedgetoggle;
 
 
 import android.annotation.SuppressLint;
