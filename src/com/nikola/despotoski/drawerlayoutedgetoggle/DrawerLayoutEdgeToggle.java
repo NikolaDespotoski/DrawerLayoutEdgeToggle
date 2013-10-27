@@ -170,7 +170,7 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		updateActionBar();
 		mCurrentDrawable = mCloseDrawable;
 		if(Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB){
-			ViewHelper.setX(mHandle, 0);
+			ViewHelper.setX(mHandle, mGravity == GravityCompat.END || mGravity == Gravity.RIGHT? getScreenWidth() : 0);
 			ViewHelper.setY(mHandle, mY);
 		}
 		
@@ -361,7 +361,10 @@ public class DrawerLayoutEdgeToggle implements DrawerLayout.DrawerListener{
 		mTopPercentage = topInPercentage;
 	}
 	public void onConfigurationChanged(Configuration newConfig) {
-		
+		if(mDrawerLayout!=null){
+		mDrawerLayout.measure(MeasureSpec.EXACTLY, MeasureSpec.EXACTLY);
+		syncState();
+		}
 	}
 
 	@SuppressLint("NewApi")
